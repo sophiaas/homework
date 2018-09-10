@@ -1,9 +1,9 @@
 import os
+import argparse
 
-#Reacher-v2, Humanoid-v2
 envnames = ['Reacher-v2']
 num_neurons = [64]
-learning_rates = [.001]
+learning_rates = [.1, .075, .05, .01, .005, .001]
 num_layers = [3]
 batch_size = [16]
 num_epochs = [10]
