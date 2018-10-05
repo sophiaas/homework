@@ -5,10 +5,8 @@ Adapted for CS294-112 Fall 2018 by Michael Chang and Soroush Nasiriany
 """
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 import gym
 import logz
-import scipy.signal
 import os
 import time
 import inspect
@@ -165,7 +163,7 @@ class Agent(object):
 
             returns:
                 sy_sampled_ac:
-                    if discrete: (batch_size)
+                    if discrete: (batch_size,)
                     if continuous: (batch_size, self.ac_dim)
 
             Hint: for the continuous case, use the reparameterization trick:
@@ -200,7 +198,9 @@ class Agent(object):
                         sy_mean: (batch_size, self.ac_dim)
                         sy_logstd: (self.ac_dim,)
 
-                sy_ac_na: (batch_size, self.ac_dim)
+                sy_ac_na:
+                    if discrete: (batch_size,)
+                    if continuous: (batch_size, self.ac_dim)
 
             returns:
                 sy_logprob_n: (batch_size)
@@ -479,12 +479,13 @@ class Agent(object):
             arguments:
                 ob_no: shape: (sum_of_path_lengths, ob_dim)
                 ac_na: shape: (sum_of_path_lengths).
-
-            returns:
                 q_n: shape: (sum_of_path_lengths). A single vector for the estimated q values
                     whose length is the sum of the lengths of the paths
                 adv_n: shape: (sum_of_path_lengths). A single vector for the estimated
                     advantages whose length is the sum of the lengths of the paths
+
+            returns:
+                nothing
 
         """
         #====================================================================================#
