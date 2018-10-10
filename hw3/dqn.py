@@ -100,6 +100,8 @@ class QLearner(object):
     self.env = env
     self.session = session
     self.exploration = exploration
+    if self.double_q:
+        name += '_doubleq'
     self.rew_file = 'logs/' + name + time.strftime('_%m-%d-%Y_%H%M') + '.pkl' if rew_file is None else rew_file
     # self.rew_file = str(uuid.uuid4()) + '.pkl' if rew_file is None else rew_file
 
@@ -177,7 +179,11 @@ class QLearner(object):
     self.q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
-    y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(self.q_tp1, axis=1)
+    if self.double_q:
+        y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(self.q_t, axis=1)
+    else:
+        y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(self.q_tp1, axis=1)
+
     act_onehot = tf.one_hot(self.act_t_ph, depth=self.num_actions)
     q_val = tf.reduce_sum((act_onehot * self.q_t), axis=1)
 
