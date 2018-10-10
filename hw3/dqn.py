@@ -168,8 +168,9 @@ class QLearner(object):
     q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
-    y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * self.q_tp1
-    q_val = tf.reduce_sum(tf.one_hot(act_t_ph, depth=num_actions) * q, axis=1)
+    y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(q_tp1, axis=1)
+    act_onehot = tf.one_hot(self.act_t_ph, depth=self.num_actions)
+    q_val = tf.reduce_sum((act_onehot * q_t), axis=1)
 
     residuals = tf.subtract(y, q_val)
     self.total_error = huber_loss(residuals)
@@ -246,13 +247,13 @@ class QLearner(object):
     self.replay_buffer_idx = self.replay_buffer.store_frame(self.last_obs)
 
     if explore or not self.model_initialized:
-        action = env.action_space.sample()
+        action = self.env.action_space.sample()
     else:
         q_input = self.replay_buffer.encode_recent_observation()
-        q_vals = session.run(q_t, feed_dict={obs_t_ph: [q_input]})
+        q_vals = session.run(q_t, feed_dict={self.obs_t_ph: [q_input]})
         action = tf.argmax(q_vals)
 
-    self.last_obs, reward, done, info = env.step(action)
+    self.last_obs, reward, done, info = self.env.step(action)
 
     self.replay_buffer.store_effect(self.replay_buffer_idx, action, reward, done)
 
@@ -315,7 +316,7 @@ class QLearner(object):
           self.session.run(self.update_target_fn)
 
       #3.c Train model
-      self.session.run(self.train_fn, feed_dict={'opt_t_ph': obs_batch, 'act_t_ph': act_batch, 'rew_t_ph': rew_batch, 'obs_tp1_ph': next_obs_batch, 'done_mask_ph': done_mask, 'learning_rate': self.optimizer_spec.lr_schedule.value(t)})
+      self.session.run(self.train_fn, feed_dict={self.obs_t_ph: obs_batch, self.act_t_ph: act_batch, self.rew_t_ph: rew_batch, self.obs_tp1_ph: next_obs_batch, self.done_mask_ph: done_mask, self.learning_rate: self.optimizer_spec.lr_schedule.value(self.t)})
 
       #3.d Periodically update target network
       if self.num_param_updates % self.target_update_freq == 0:
