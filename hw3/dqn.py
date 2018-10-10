@@ -21,6 +21,7 @@ class QLearner(object):
     q_func,
     optimizer_spec,
     session,
+    name,
     exploration=LinearSchedule(1000000, 0.1),
     stopping_criterion=None,
     replay_buffer_size=1000000,
@@ -99,8 +100,16 @@ class QLearner(object):
     self.env = env
     self.session = session
     self.exploration = exploration
-    self.rew_file = str(uuid.uuid4()) + '.pkl' if rew_file is None else rew_file
+    self.rew_file = 'logs/' + name + time.strftime('_%m-%d-%Y_%H%M') + '.pkl' if rew_file is None else rew_file
+    # self.rew_file = str(uuid.uuid4()) + '.pkl' if rew_file is None else rew_file
 
+    # init logging variables
+    self.t_log = []
+    self.mean_reward_log = []
+    self.best_mean_log = []
+    self.episodes_log = []
+    self.exploration_log = []
+    self.learning_rate_log = []
     ###############
     # BUILD MODEL #
     ###############
@@ -128,7 +137,7 @@ class QLearner(object):
     # this value is 1 if the next state corresponds to the end of an episode,
     # in which case there is no Q-value at the next state; at the end of an
     # episode, only the current state reward contributes to the target, not the
-    # next state Q-value (i.e. target is just rew_t_ph, not rew_t_ph + gamma * q_tp1)
+    # next state Q-value (i.e. target is just rew_t_ph, not rew_t_ph + gamma * self.q_tp1)
     self.done_mask_ph          = tf.placeholder(tf.float32, [None])
 
     # casting to float on GPU ensures lower data transfer times.
@@ -162,15 +171,15 @@ class QLearner(object):
 
     ######
 
-    q_t = q_func(obs_t_float, self.num_actions, scope="q_func", reuse=False)
+    self.q_t = q_func(obs_t_float, self.num_actions, scope="q_func", reuse=False)
     q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
 
-    q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
+    self.q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
-    y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(q_tp1, axis=1)
+    y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(self.q_tp1, axis=1)
     act_onehot = tf.one_hot(self.act_t_ph, depth=self.num_actions)
-    q_val = tf.reduce_sum((act_onehot * q_t), axis=1)
+    q_val = tf.reduce_sum((act_onehot * self.q_t), axis=1)
 
     residuals = tf.subtract(y, q_val)
     self.total_error = huber_loss(residuals)
@@ -250,8 +259,8 @@ class QLearner(object):
         action = self.env.action_space.sample()
     else:
         q_input = self.replay_buffer.encode_recent_observation()
-        q_vals = session.run(q_t, feed_dict={self.obs_t_ph: [q_input]})
-        action = tf.argmax(q_vals)
+        q_vals = self.session.run(self.q_t, feed_dict={self.obs_t_ph: [q_input]})
+        action = np.argmax(q_vals)
 
     self.last_obs, reward, done, info = self.env.step(action)
 
@@ -310,6 +319,7 @@ class QLearner(object):
 
       #3.b Initialize model
       if not self.model_initialized:
+          self.model_initialized = True
           initialize_interdependent_variables(self.session, tf.global_variables(), {
             self.obs_t_ph: obs_batch,
             self.obs_tp1_ph: next_obs_batch})
@@ -337,11 +347,17 @@ class QLearner(object):
 
     if self.t % self.log_every_n_steps == 0 and self.model_initialized:
       print("Timestep %d" % (self.t,))
+      self.t_log.append(self.t)
       print("mean reward (100 episodes) %f" % self.mean_episode_reward)
+      self.mean_reward_log.append(self.mean_episode_reward)
       print("best mean reward %f" % self.best_mean_episode_reward)
+      self.best_mean_log.append(self.best_mean_episode_reward)
       print("episodes %d" % len(episode_rewards))
+      self.episodes_log.append(len(episode_rewards))
       print("exploration %f" % self.exploration.value(self.t))
+      self.exploration_log.append(self.exploration.value(self.t))
       print("learning_rate %f" % self.optimizer_spec.lr_schedule.value(self.t))
+      self.learning_rate_log.append(self.optimizer_spec.lr_schedule.value(self.t))
       if self.start_time is not None:
         print("running time %f" % ((time.time() - self.start_time) / 60.))
 
@@ -349,8 +365,11 @@ class QLearner(object):
 
       sys.stdout.flush()
 
+      logfile = ({'t': self.t_log, 'mean_reward': self.mean_reward_log, 'best_mean': self.best_mean_log, 'episodes': self.episodes_log,
+      'exploration': self.exploration_log, 'learning_rate': self.learning_rate_log})
+
       with open(self.rew_file, 'wb') as f:
-        pickle.dump(episode_rewards, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(logfile, f, pickle.HIGHEST_PROTOCOL)
 
 def learn(*args, **kwargs):
   alg = QLearner(*args, **kwargs)

@@ -67,6 +67,7 @@ def lander_learn(env,
     exploration_schedule = lander_exploration_schedule(num_timesteps)
 
     dqn.learn(
+        name='lander',
         env=env,
         session=session,
         exploration=lander_exploration_schedule(num_timesteps),
@@ -99,7 +100,7 @@ def get_env(seed):
     env.seed(seed)
 
     expt_dir = '/tmp/hw3_vid_dir/'
-    env = wrappers.Monitor(env, osp.join(expt_dir, "gym"), force=True)
+    env = wrappers.Monitor(env, osp.join(expt_dir, "gym"), force=True, video_callable=False)
 
     return env
 

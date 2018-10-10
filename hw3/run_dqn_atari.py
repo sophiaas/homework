@@ -62,6 +62,7 @@ def atari_learn(env,
 
     dqn.learn(
         env=env,
+        name='atari',
         q_func=atari_model,
         optimizer_spec=optimizer,
         session=session,
