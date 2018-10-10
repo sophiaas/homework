@@ -174,12 +174,7 @@ class QLearner(object):
 
     ######
 
-    # if self.double_q:
-    #     reuse = True
-    # else:
-    #     reuse = False
-
-    self.q_t = q_func(obs_t_float, self.num_actions, scope="q_func", reuse=False)
+    self.q_t = q_func(obs_t_float, self.num_actions, scope='q_func', reuse=False)
     q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
 
     self.q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
@@ -188,14 +183,16 @@ class QLearner(object):
     act_onehot = tf.one_hot(self.act_t_ph, depth=self.num_actions)
 
     if self.double_q:
-        y = tf.stop_gradient(self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_sum((act_onehot * self.q_tp1), axis=1))
+        q_pred = q_func(obs_tp1_float, self.num_actions, scope='q_func', reuse=True)
+        q_pred_act = tf.one_hot(np.argmax(q_pred), depth=self.num_actions)
+        y = tf.stop_gradient(self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_sum((q_pred_act * self.q_tp1), axis=1))
     else:
         y = tf.stop_gradient(self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_max(self.q_tp1, axis=1))
 
     q_val = tf.reduce_sum((act_onehot * self.q_t), axis=1)
 
     residuals = tf.subtract(y, q_val)
-    self.total_error = huber_loss(residuals)
+    self.total_error = tf.reduce_mean(huber_loss(residuals))
 
     # construct optimization op (with gradient clipping)
     self.learning_rate = tf.placeholder(tf.float32, (), name="learning_rate")
