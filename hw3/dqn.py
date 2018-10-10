@@ -162,6 +162,18 @@ class QLearner(object):
 
     ######
 
+    q_t = q_func(obs_t_float, self.num_actions, scope="q_func", reuse=False)
+    q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+
+    q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
+    target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
+
+    y = self.rew_t_ph + (1 - self.done_mask_ph) * gamma * self.q_tp1
+    q_val = tf.reduce_sum(tf.one_hot(act_t_ph, depth=num_actions) * q, axis=1)
+
+    residuals = tf.subtract(y, q_val)
+    self.total_error = huber_loss(residuals)
+
     # construct optimization op (with gradient clipping)
     self.learning_rate = tf.placeholder(tf.float32, (), name="learning_rate")
     optimizer = self.optimizer_spec.constructor(learning_rate=self.learning_rate, **self.optimizer_spec.kwargs)
@@ -229,6 +241,23 @@ class QLearner(object):
     #####
 
     # YOUR CODE HERE
+    explore = random.random() < self.exploration.value(self.t)
+
+    self.replay_buffer_idx = self.replay_buffer.store_frame(self.last_obs)
+
+    if explore or not self.model_initialized:
+        action = env.action_space.sample()
+    else:
+        q_input = self.replay_buffer.encode_recent_observation()
+        q_vals = session.run(q_t, feed_dict={obs_t_ph: [q_input]})
+        action = tf.argmax(q_vals)
+
+    self.last_obs, reward, done, info = env.step(action)
+
+    self.replay_buffer.store_effect(self.replay_buffer_idx, action, reward, done)
+
+    if done:
+        self.last_obs = self.env.reset()
 
   def update_model(self):
     ### 3. Perform experience replay and train the network.
@@ -275,6 +304,23 @@ class QLearner(object):
 
       # YOUR CODE HERE
 
+      #3.a Sample replay buffer
+      obs_batch, act_batch, rew_batch, next_obs_batch, done_mask = self.replay_buffer.sample(self.batch_size)
+
+      #3.b Initialize model
+      if not self.model_initialized:
+          initialize_interdependent_variables(self.session, tf.global_variables(), {
+            self.obs_t_ph: obs_batch,
+            self.obs_tp1_ph: next_obs_batch})
+          self.session.run(self.update_target_fn)
+
+      #3.c Train model
+      self.session.run(self.train_fn, feed_dict={'opt_t_ph': obs_batch, 'act_t_ph': act_batch, 'rew_t_ph': rew_batch, 'obs_tp1_ph': next_obs_batch, 'done_mask_ph': done_mask, 'learning_rate': self.optimizer_spec.lr_schedule.value(t)})
+
+      #3.d Periodically update target network
+      if self.num_param_updates % self.target_update_freq == 0:
+          self.session.run(self.update_target_fn)
+
       self.num_param_updates += 1
 
     self.t += 1
@@ -314,4 +360,3 @@ def learn(*args, **kwargs):
     # observation
     alg.update_model()
     alg.log_progress()
-
