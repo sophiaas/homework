@@ -33,7 +33,7 @@ class QLearner(object):
     target_update_freq=10000,
     grad_norm_clipping=10,
     rew_file=None,
-    double_q=True,
+    double_q=False,
     lander=False):
     """Run Deep Q-learning algorithm.
 
@@ -177,7 +177,7 @@ class QLearner(object):
     self.q_t = q_func(obs_t_float, self.num_actions, scope="q_func", reuse=False)
     q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
 
-    self.q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
+    self.q_tp1 = tf.stop_gradient(q_func(obs_tp1_float, self.num_actions, scope="target_q_func"))
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
     if self.double_q:
