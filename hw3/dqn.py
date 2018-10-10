@@ -100,6 +100,7 @@ class QLearner(object):
     self.env = env
     self.session = session
     self.exploration = exploration
+    self.double_q = double_q
     if self.double_q:
         name += '_doubleq'
     self.rew_file = 'logs/' + name + time.strftime('_%m-%d-%Y_%H%M') + '.pkl' if rew_file is None else rew_file
