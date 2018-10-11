@@ -72,7 +72,7 @@ def lander_learn(env,
         session=session,
         exploration=lander_exploration_schedule(num_timesteps),
         stopping_criterion=lander_stopping_criterion(num_timesteps),
-        double_q=True,
+        double_q=False,
         **lander_kwargs()
     )
     env.close()

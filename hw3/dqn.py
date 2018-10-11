@@ -33,8 +33,8 @@ class QLearner(object):
     target_update_freq=10000,
     grad_norm_clipping=10,
     rew_file=None,
-    double_q=True,
-    lander=False):
+    double_q=False,
+    lander=True):
     """Run Deep Q-learning algorithm.
 
     You can specify your own convnet using q_func.
@@ -103,6 +103,7 @@ class QLearner(object):
     self.double_q = double_q
     if self.double_q:
         name += '_doubleq'
+        print('double_q_learning')
     self.rew_file = 'logs/' + name + time.strftime('_%m-%d-%Y_%H%M') + '.pkl' if rew_file is None else rew_file
     # self.rew_file = str(uuid.uuid4()) + '.pkl' if rew_file is None else rew_file
 
@@ -177,13 +178,13 @@ class QLearner(object):
     self.q_t = q_func(obs_t_float, self.num_actions, scope='q_func', reuse=False)
     q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
 
-    self.q_tp1 = q_func(obs_tp1_float, self.num_actions, scope="target_q_func")
+    self.q_tp1 = tf.stop_gradient(q_func(obs_tp1_float, self.num_actions, scope="target_q_func"))
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
     act_onehot = tf.one_hot(self.act_t_ph, depth=self.num_actions)
 
     if self.double_q:
-        q_pred = q_func(obs_tp1_float, self.num_actions, scope='q_func', reuse=True)
+        q_pred = tf.stop_gradient(q_func(obs_tp1_float, self.num_actions, scope='q_func', reuse=True))
         q_pred_act = tf.one_hot(np.argmax(q_pred), depth=self.num_actions)
         y = tf.stop_gradient(self.rew_t_ph + (1 - self.done_mask_ph) * gamma * tf.reduce_sum((q_pred_act * self.q_tp1), axis=1))
     else:
