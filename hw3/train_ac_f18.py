@@ -20,7 +20,7 @@ from multiprocessing import Process
 def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=tf.tanh, output_activation=None):
     """
         Builds a feedforward neural network
-        
+
         arguments:
             input_placeholder: placeholder variable for the state (batch_size, input_size)
             output_size: size of the output layer
@@ -31,13 +31,18 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
             output_activation: activation of the ouput layers
 
         returns:
-            output placeholder of the network (the result of a forward pass) 
+            output placeholder of the network (the result of a forward pass)
 
-        Hint: use tf.layers.dense    
+        Hint: use tf.layers.dense
     """
     # YOUR HW2 CODE HERE
-    raise NotImplementedError
-    return output_placeholder
+    output = input_placeholder
+    for layer in range(n_layers):
+        with tf.variable_scope(scope+str(layer)):
+            output = tf.layers.dense(inputs=output, units=size, activation=activation)
+    with tf.name_scope(scope+str(n_layers)):
+        logits = tf.layers.dense(output, units=output_size, activation=output_activation)
+    return logits
 
 def pathlength(path):
     return len(path["reward"])
@@ -91,14 +96,13 @@ class Agent(object):
                 sy_ac_na: placeholder for actions
                 sy_adv_n: placeholder for advantages
         """
-        raise NotImplementedError
         sy_ob_no = tf.placeholder(shape=[None, self.ob_dim], name="ob", dtype=tf.float32)
         if self.discrete:
-            sy_ac_na = tf.placeholder(shape=[None], name="ac", dtype=tf.int32) 
+            sy_ac_na = tf.placeholder(shape=[None], name="ac", dtype=tf.int32)
         else:
-            sy_ac_na = tf.placeholder(shape=[None, self.ac_dim], name="ac", dtype=tf.float32) 
+            sy_ac_na = tf.placeholder(shape=[None, self.ac_dim], name="ac", dtype=tf.float32)
         # YOUR HW2 CODE HERE
-        sy_adv_n = None
+        sy_adv_n = tf.placeholder(shape=[None], name="adv", dtype=tf.float32)
         return sy_ob_no, sy_ac_na, sy_adv_n
 
     def policy_forward_pass(self, sy_ob_no):
@@ -126,15 +130,14 @@ class Agent(object):
                 Pass in self.n_layers for the 'n_layers' argument, and
                 pass in self.size for the 'size' argument.
         """
-        raise NotImplementedError
         if self.discrete:
             # YOUR_HW2 CODE_HERE
-            sy_logits_na = None
+            sy_logits_na = build_mlp(sy_ob_no, output_size=self.ac_dim, scope="layer", n_layers=self.n_layers, size=self.size)
             return sy_logits_na
         else:
             # YOUR_HW2 CODE_HERE
-            sy_mean = None
-            sy_logstd = None
+            sy_mean = build_mlp(sy_ob_no, output_size=self.ac_dim, scope="forward_pass", n_layers=self.n_layers, size=self.size)
+            sy_logstd = tf.get_variable("sy_logstd", initializer=tf.multiply(tf.ones(shape=(self.ac_dim,)), -1))
             return (sy_mean, sy_logstd)
 
     def sample_action(self, policy_parameters):
@@ -143,33 +146,33 @@ class Agent(object):
 
             arguments:
                 policy_parameters
-                    if discrete: logits of a categorical distribution over actions 
+                    if discrete: logits of a categorical distribution over actions
                         sy_logits_na: (batch_size, self.ac_dim)
                     if continuous: (mean, log_std) of a Gaussian distribution over actions
                         sy_mean: (batch_size, self.ac_dim)
                         sy_logstd: (self.ac_dim,)
 
             returns:
-                sy_sampled_ac: 
+                sy_sampled_ac:
                     if discrete: (batch_size)
                     if continuous: (batch_size, self.ac_dim)
 
             Hint: for the continuous case, use the reparameterization trick:
                  The output from a Gaussian distribution with mean 'mu' and std 'sigma' is
-        
+
                       mu + sigma * z,         z ~ N(0, I)
-        
+
                  This reduces the problem to just sampling z. (Hint: use tf.random_normal!)
         """
-        raise NotImplementedError
         if self.discrete:
             sy_logits_na = policy_parameters
             # YOUR_HW2 CODE_HERE
-            sy_sampled_ac = None
+            sy_sampled_ac = tf.distributions.Categorical(logits=sy_logits_na).sample()
         else:
             sy_mean, sy_logstd = policy_parameters
             # YOUR_HW2 CODE_HERE
-            sy_sampled_ac = None
+            sy_sampled_z = tf.random_normal(tf.shape(sy_mean))
+            sy_sampled_ac = tf.add(sy_mean, tf.multiply(tf.exp(sy_logstd), sy_sampled_z))
         return sy_sampled_ac
 
     def get_log_prob(self, policy_parameters, sy_ac_na):
@@ -178,7 +181,7 @@ class Agent(object):
 
             arguments:
                 policy_parameters
-                    if discrete: logits of a categorical distribution over actions 
+                    if discrete: logits of a categorical distribution over actions
                         sy_logits_na: (batch_size, self.ac_dim)
                     if continuous: (mean, log_std) of a Gaussian distribution over actions
                         sy_mean: (batch_size, self.ac_dim)
@@ -193,31 +196,32 @@ class Agent(object):
                 For the discrete case, use the log probability under a categorical distribution.
                 For the continuous case, use the log probability under a multivariate gaussian.
         """
-        raise NotImplementedError
         if self.discrete:
             sy_logits_na = policy_parameters
             # YOUR_HW2 CODE_HERE
-            sy_logprob_n = None
+            sy_logprob_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na, logits=sy_logits_na)
         else:
             sy_mean, sy_logstd = policy_parameters
             # YOUR_HW2 CODE_HERE
-            sy_logprob_n = None
+            sy_z_sampled = tf.random_normal(tf.shape(sy_mean))
+            sy_z = (sy_ac_na - sy_mean) / tf.exp(sy_logstd)
+            sy_logprob_n = 0.5 * tf.reduce_sum(tf.square(sy_z), axis=1)
         return sy_logprob_n
 
     def build_computation_graph(self):
         """
             Notes on notation:
-            
+
             Symbolic variables have the prefix sy_, to distinguish them from the numerical values
             that are computed later in the function
-            
+
             Prefixes and suffixes:
-            ob - observation 
+            ob - observation
             ac - action
             _no - this tensor should have shape (batch self.size /n/, observation dim)
             _na - this tensor should have shape (batch self.size /n/, action dim)
             _n  - this tensor should have shape (batch self.size /n/)
-            
+
             Note: batch self.size /n/ is defined at runtime, and until then, the shape for that axis
             is None
 
@@ -238,7 +242,7 @@ class Agent(object):
         # This is used in the loss function.
         self.sy_logprob_n = self.get_log_prob(self.policy_parameters, self.sy_ac_na)
 
-        actor_loss = tf.reduce_sum(-self.sy_logprob_n * self.sy_adv_n)
+        actor_loss = tf.reduce_sum(self.sy_logprob_n * self.sy_adv_n)
         self.actor_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(actor_loss)
 
         # define the critic
@@ -253,6 +257,7 @@ class Agent(object):
         self.critic_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.critic_loss)
 
     def sample_trajectories(self, itr, env):
+        print('sampling trajectories')
         # Collect paths until we have enough timesteps
         timesteps_this_batch = 0
         paths = []
@@ -274,26 +279,25 @@ class Agent(object):
                 env.render()
                 time.sleep(0.1)
             obs.append(ob)
-            raise NotImplementedError
-            ac = None # YOUR HW2 CODE HERE
+            ac = self.sess.run(self.sy_sampled_ac, feed_dict={'ob:0': ob[None,]}) # YOUR HW2 CODE HERE
             ac = ac[0]
             acs.append(ac)
             ob, rew, done, _ = env.step(ac)
             # add the observation after taking a step to next_obs
             # YOUR CODE HERE
-            raise NotImplementedError
+            next_obs.append(ob)
             rewards.append(rew)
             steps += 1
             # If the episode ended, the corresponding terminal value is 1
             # otherwise, it is 0
             # YOUR CODE HERE
             if done or steps > self.max_path_length:
-                raise NotImplementedError
+                terminals.append(1)
                 break
             else:
-                raise NotImplementedError
-        path = {"observation" : np.array(obs, dtype=np.float32), 
-                "reward" : np.array(rewards, dtype=np.float32), 
+                terminals.append(0)
+        path = {"observation" : np.array(obs, dtype=np.float32),
+                "reward" : np.array(rewards, dtype=np.float32),
                 "action" : np.array(acs, dtype=np.float32),
                 "next_observation": np.array(next_obs, dtype=np.float32),
                 "terminal": np.array(terminals, dtype=np.float32)}
@@ -303,7 +307,7 @@ class Agent(object):
         """
             Estimates the advantage function value for each timestep.
 
-            let sum_of_path_lengths be the sum of the lengths of the paths sampled from 
+            let sum_of_path_lengths be the sum of the lengths of the paths sampled from
                 Agent.sample_trajectories
 
             arguments:
@@ -315,7 +319,7 @@ class Agent(object):
                     at that timestep of 0 if the episode did not end
 
             returns:
-                adv_n: shape: (sum_of_path_lengths). A single vector for the estimated 
+                adv_n: shape: (sum_of_path_lengths). A single vector for the estimated
                     advantages whose length is the sum of the lengths of the paths
         """
         # First, estimate the Q value as Q(s, a) = r(s, a) + gamma*V(s')
@@ -325,12 +329,14 @@ class Agent(object):
         # Note: don't forget to use terminal_n to cut off the V(s') term when computing Q(s, a)
         # otherwise the values will grow without bound.
         # YOUR CODE HERE
-        raise NotImplementedError
-        adv_n = None
+        v_s_prime = self.sess.run(self.critic_prediction, feed_dict={self.sy_ob_no: next_ob_no})
+        v_s = self.sess.run(self.critic_prediction, feed_dict={self.sy_ob_no: ob_no})
+
+        q_n = re_n + (1 - terminal_n) * self.gamma * v_s_prime
+        adv_n = q_n - v_s
 
         if self.normalize_advantages:
-            raise NotImplementedError
-            adv_n = None # YOUR_HW2 CODE_HERE
+            adv_n = (adv_n - np.mean(adv_n)) / np.std(adv_n)
         return adv_n
 
     def update_critic(self, ob_no, next_ob_no, re_n, terminal_n):
@@ -360,10 +366,15 @@ class Agent(object):
         # Note: don't forget to use terminal_n to cut off the V(s') term when computing the target
         # otherwise the values will grow without bound.
         # YOUR CODE HERE
-        raise NotImplementedError
+        print('updating critic')
+        for i in range(self.num_target_updates):
+            v_s_prime = self.sess.run(self.critic_prediction, feed_dict={self.sy_ob_no: next_ob_no})
+            target_n = re_n + (1 - terminal_n) * self.gamma * v_s_prime
+            for j in range(self.num_grad_steps_per_target_update):
+                self.sess.run(self.critic_update_op, feed_dict={self.sy_ob_no: ob_no, self.sy_target_n: target_n})
 
     def update_actor(self, ob_no, ac_na, adv_n):
-        """ 
+        """
             Update the parameters of the policy.
 
             arguments:
@@ -383,15 +394,15 @@ class Agent(object):
 def train_AC(
         exp_name,
         env_name,
-        n_iter, 
-        gamma, 
-        min_timesteps_per_batch, 
+        n_iter,
+        gamma,
+        min_timesteps_per_batch,
         max_path_length,
         learning_rate,
         num_target_updates,
         num_grad_steps_per_target_update,
-        animate, 
-        logdir, 
+        animate,
+        logdir,
         normalize_advantages,
         seed,
         n_layers,
@@ -469,7 +480,7 @@ def train_AC(
         paths, timesteps_this_batch = agent.sample_trajectories(itr, env)
         total_timesteps += timesteps_this_batch
 
-        # Build arrays for observation, action for the policy gradient update by concatenating 
+        # Build arrays for observation, action for the policy gradient update by concatenating
         # across paths
         ob_no = np.concatenate([path["observation"] for path in paths])
         ac_na = np.concatenate([path["action"] for path in paths])
@@ -482,7 +493,9 @@ def train_AC(
         # (2) use the updated critic to compute the advantage by, calling agent.estimate_advantage
         # (3) use the estimated advantage values to update the actor, by calling agent.update_actor
         # YOUR CODE HERE
-        raise NotImplementedError
+        agent.update_critic(ob_no, next_ob_no, re_n, terminal_n)
+        adv_n = agent.estimate_advantage(ob_no, next_ob_no, re_n, terminal_n)
+        agent.update_actor(ob_no, ac_na, adv_n)
 
         # Log diagnostics
         returns = [path["reward"].sum() for path in paths]
@@ -525,7 +538,7 @@ def main():
 
     if not (os.path.exists(data_path)):
         os.makedirs(data_path)
-    logdir = 'ac_' + args.exp_name + '_' + args.env_name + '_' + time.strftime("%d-%m-%Y_%H-%M-%S")
+    logdir = 'ac_' + args.exp_name + '_' + args.env_name + '_' +  time.strftime("%d-%m-%Y_%H-%M-%S")
     logdir = os.path.join(data_path, logdir)
     if not(os.path.exists(logdir)):
         os.makedirs(logdir)
@@ -561,13 +574,13 @@ def main():
         p = Process(target=train_func, args=tuple())
         p.start()
         processes.append(p)
-        # if you comment in the line below, then the loop will block 
+        # if you comment in the line below, then the loop will block
         # until this process finishes
         # p.join()
 
     for p in processes:
         p.join()
-        
+
 
 if __name__ == "__main__":
     main()
