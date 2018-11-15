@@ -30,13 +30,13 @@ class PointEnv(Env):
         # YOUR CODE HERE
         tile_color = 1 if is_evaluation else 0
         # if is_evaluation:
-        checkerboard = np.kron([[1, 0] * 2, [0, 1] * 2] * granularity, np.ones((granularity, granularity)))
+        checkerboard = np.kron([[1, 0] * 2, [0, 1] * 2] * 2, np.ones((self.granularity, self.granularity)))
 
         done = False
         while not done:
-            x = np.random.uniform(0, checkerboard.shape[0])
-            y = np.random.uniform(0, checkerboard.shape[0])
-            if checkboard[x, y] == tile_color:
+            x = np.random.randint(0, checkerboard.shape[0])
+            y = np.random.randint(0, checkerboard.shape[1])
+            if checkerboard[x, y] == tile_color:
                 done = True
         self._goal = np.array([x, y])
 
