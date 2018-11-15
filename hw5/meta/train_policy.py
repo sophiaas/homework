@@ -70,10 +70,11 @@ def build_rnn(x, h, output_size, scope, n_layers, size, activation=tf.tanh, outp
     #                           ----------PROBLEM 2----------
     #====================================================================================#
     # YOUR CODE HERE
-    x = build_mlp(x, output_size, scope, n_layers, size, activation=activation, output_activation=activation)
-    cell = tf.nn.rnn_cell.GRUCell(num_units=output_size, activation=activation, scope=scope)
-    initial_state = cell.zero_state(x.shape[0], dtype=tf.float32)
-    x, h = tf.nn.dynamic_rnn(cell, x, initial_state=initial_state, dtype=tf.float32, scope=scope)
+    with tf.variable_scope(scope):
+        x = build_mlp(x, output_size, scope, n_layers, size, activation, output_activation, regularizer)
+        cell = tf.nn.rnn_cell.GRUCell(num_units=output_size, activation=activation)
+        x, h = tf.nn.dynamic_rnn(cell, x, initial_state=h, dtype=tf.float32)
+        x = x[:, -1, :]
     return x, h
 
 def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=True, activation=tf.tanh, output_activation=None):
@@ -336,6 +337,7 @@ class Agent(object):
         #====================================================================================#
         #                           ----------PROBLEM 1----------
         #====================================================================================#
+
         ep_steps = 0
         steps = 0
 
@@ -353,10 +355,10 @@ class Agent(object):
                 # first meta ob has only the observation
                 # set a, r, d to zero, construct first meta observation in meta_obs
                 # YOUR CODE HERE
-                a = np.zeros((1, self.ac_dim))
-                r = np.zeros((1, self.reward_dim))
-                d = np.zeros((1, self.terminal_dim))
-                meta_obs[self.history] = np.array(np.hstack([ob, a, r, d]))
+                ac = np.zeros((self.ac_dim))
+                r = np.zeros((self.reward_dim))
+                d = np.zeros((self.terminal_dim))
+                meta_obs[self.history+steps] = np.concatenate((ob, ac, r, d), axis=0)
 
                 steps += 1
 
@@ -369,7 +371,7 @@ class Agent(object):
 
             # get action from the policy
             # YOUR CODE HERE
-            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: in_[None, :, :]})
+            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: np.array([in_]), self.sy_hidden: hidden})
 
             # step the environment
             # YOUR CODE HERE
@@ -380,9 +382,7 @@ class Agent(object):
             done = bool(done) or ep_steps == self.max_path_length
             # construct the meta-observation and add it to meta_obs
             # YOUR CODE HERE
-            r = np.tile([rew], (ob.shape[0], 1))
-            d = np.tile(done, (ob.shape[0], 1))
-            meta_obs[steps:self.history+steps] = np.concatenate((ob, ac, r, d), axis=1)
+            meta_obs[self.history+steps] = np.concatenate((ob, ac, [r], [int(d)], axis=0)
             rewards.append(rew)
             steps += 1
 
