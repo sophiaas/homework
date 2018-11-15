@@ -75,6 +75,9 @@ def build_rnn(x, h, output_size, scope, n_layers, size, activation=tf.tanh, outp
     #                           ----------PROBLEM 2----------
     #====================================================================================#
     # YOUR CODE HERE
+    x = build_mlp(x, output_size, scope, n_layers, size, activation=activation, output_activation=activation)
+    h = tf.nn.rnn_cell.GRUCell(num_units=output_size, activation=activation).__call__(x, np.zeros(x.shape[0], output_size))
+    return x, h
 
 def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=True, activation=tf.tanh, output_activation=None):
     """
@@ -377,29 +380,35 @@ class Agent(object):
                 # first meta ob has only the observation
                 # set a, r, d to zero, construct first meta observation in meta_obs
                 # YOUR CODE HERE
-
+                a = np.zeros((1, self.ac_dim))
+                r = np.zeros((1, self.reward_dim))
+                d = np.zeros((1, self.terminal_dim))
+                meta_obs[0] = np.array(np.hstack([ob, a, r, d]))
                 steps += 1
 
             # index into the meta_obs array to get the window that ends with the current timestep
             # please name the windowed observation `in_` for compatibilty with the code that adds to the replay buffer (lines 418, 420)
             # YOUR CODE HERE
-
+            in_ = meta_obs[steps:steps+self.history]
             hidden = np.zeros((1, self.gru_size), dtype=np.float32)
-
             # get action from the policy
-            # YOUR CODE HERE
-
+            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: in_[:, None, :] })
+            # meta_obs[:, None, :]
             # step the environment
-            # YOUR CODE HERE
+            ob, rew, done, info = env.step(ac)
 
             ep_steps += 1
-
+            steps += 1
+            s = ob
+            a = ac
+            r = np.tile([rew], (ob.shape[0], 1))
+            d = np.tile(done, (ob.shape[0], 1))
             done = bool(done) or ep_steps == self.max_path_length
             # construct the meta-observation and add it to meta_obs
-            # YOUR CODE HERE
+            meta_obs[steps:steps+self.history] = np.concatenate((s, a, r, d), axis=1)
 
             rewards.append(rew)
-            steps += 1
+
 
             # add sample to replay buffer
             if is_evaluation:
