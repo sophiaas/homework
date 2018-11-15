@@ -41,12 +41,10 @@ def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
 def build_mlp(x, output_size, scope, n_layers, size, activation=tf.tanh, output_activation=None, regularizer=None):
     """
     builds a feedforward neural network
-
     arguments:
         x: placeholder variable for the state (batch_size, input_size)
         regularizer: regularization for weights
         (see `build_policy()` for rest)
-
     returns:
         output placeholder of the network (the result of a forward pass)
     """
@@ -61,14 +59,11 @@ def build_rnn(x, h, output_size, scope, n_layers, size, activation=tf.tanh, outp
     """
     builds a gated recurrent neural network
     inputs are first embedded by an MLP then passed to a GRU cell
-
     make MLP layers with `size` number of units
     make the GRU with `output_size` number of units
     use `activation` as the activation function for both MLP and GRU
-
     arguments:
         (see `build_policy()`)
-
     hint: use `build_mlp()`
     """
     #====================================================================================#
@@ -84,7 +79,6 @@ def build_rnn(x, h, output_size, scope, n_layers, size, activation=tf.tanh, outp
 def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=True, activation=tf.tanh, output_activation=None):
     """
     build recurrent policy
-
     arguments:
         x: placeholder variable for the input, which has dimension (batch_size, history, input_size)
         h: placeholder variable for the hidden state, which has dimension (batch_size, gru_size)
@@ -96,10 +90,8 @@ def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=T
         recurrent: if the network should be recurrent or feedforward
         activation: activation of the hidden layers
         output_activation: activation of the ouput layers
-
     returns:
         output placeholder of the network (the result of a forward pass)
-
     n.b. we predict both the mean and std of the gaussian policy, and we don't want the std to start off too large
     initialize the last layer of the policy with a guassian init of mean 0 and std 0.01
     """
@@ -115,11 +107,9 @@ def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=T
 def build_critic(x, h, output_size, scope, n_layers, size, gru_size, recurrent=True, activation=tf.tanh, output_activation=None, regularizer=None):
     """
     build recurrent critic
-
     arguments:
         regularizer: regularization for weights
         (see `build_policy()` for rest)
-
     n.b. the policy and critic should not share weights
     """
     with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
@@ -193,13 +183,11 @@ class Agent(object):
         placeholders for batch batch observations / actions / advantages in policy gradient
         loss function.
         see Agent.build_computation_graph for notation
-
         returns:
             sy_ob_no: placeholder for meta-observations
             sy_ac_na: placeholder for actions
             sy_adv_n: placeholder for advantages
             sy_hidden: placeholder for RNN hidden state
-
             (PPO stuff)
             sy_lp_n: placeholder for pre-computed log-probs
             sy_fixed_lp_n: placeholder for pre-computed old log-probs
@@ -217,20 +205,16 @@ class Agent(object):
         """
         constructs the symbolic operation for the policy network outputs,
         which are the parameters of the policy distribution p(a|s)
-
         arguments:
             sy_ob_no: (batch_size, self.history, self.meta_ob_dim)
             sy_hidden: (batch_size, self.gru_size)
-
         returns:
             the parameters of the policy.
-
             the parameters are a tuple (mean, log_std) of a Gaussian
                 distribution over actions. log_std should just be a trainable
                 variable, not a network output.
                 sy_mean: (batch_size, self.ac_dim)
                 sy_logstd: (batch_size, self.ac_dim)
-
         """
         # ac_dim * 2 because we predict both mean and std
         sy_policy_params, sy_hidden = build_policy(sy_ob_no, sy_hidden, self.ac_dim*2, self.scope, n_layers=self.n_layers, size=self.size, gru_size=self.gru_size, recurrent=self.recurrent)
@@ -240,13 +224,11 @@ class Agent(object):
         """
         constructs a symbolic operation for stochastically sampling from the policy
         distribution
-
         arguments:
             policy_parameters
                 mean, log_std) of a Gaussian distribution over actions
                     sy_mean: (batch_size, self.ac_dim)
                     sy_logstd: (batch_size, self.ac_dim)
-
         returns:
             sy_sampled_ac:
                 (batch_size, self.ac_dim)
@@ -259,18 +241,14 @@ class Agent(object):
         """
         constructs a symbolic operation for computing the log probability of a set of actions
         that were actually taken according to the policy
-
         arguments:
             policy_parameters
                 mean, log_std) of a Gaussian distribution over actions
                     sy_mean: (batch_size, self.ac_dim)
                     sy_logstd: (batch_size, self.ac_dim)
-
             sy_ac_na: (batch_size, self.ac_dim)
-
         returns:
             sy_lp_n: (batch_size)
-
         """
         sy_mean, sy_logstd = policy_parameters
         sy_lp_n = tfp.distributions.MultivariateNormalDiag(
@@ -280,20 +258,16 @@ class Agent(object):
     def build_computation_graph(self):
         """
         notes on notation:
-
         Symbolic variables have the prefix sy_, to distinguish them from the numerical values
         that are computed later in the function
-
         prefixes and suffixes:
         ob - observation
         ac - action
         _no - this tensor should have shape (batch self.size /n/, observation dim)
         _na - this tensor should have shape (batch self.size /n/, action dim)
         _n  - this tensor should have shape (batch self.size /n/)
-
         Note: batch self.size /n/ is defined at runtime, and until then, the shape for that axis
         is None
-
         ----------------------------------------------------------------------------------
         loss: a function of self.sy_lp_n and self.sy_adv_n that we will differentiate
             to get the policy gradient.
@@ -347,14 +321,11 @@ class Agent(object):
         """
         sample a task, then sample trajectories from that task until either
         max(self.history, self.max_path_length) timesteps have been sampled
-
         construct meta-observations by concatenating (s, a, r, d) into one vector
         inputs to the policy should have the shape (batch_size, self.history, self.meta_ob_dim)
         zero pad the input to maintain a consistent input shape
-
         add the entire input as observation to the replay buffer, along with a, r, d
         samples will be drawn from the replay buffer to update the policy
-
         arguments:
             env: the env to sample trajectories from
             animate_this_episode: if True then render
@@ -385,36 +356,35 @@ class Agent(object):
                 a = np.zeros((1, self.ac_dim))
                 r = np.zeros((1, self.reward_dim))
                 d = np.zeros((1, self.terminal_dim))
-                # print(np.array(np.hstack([ob, a, r, d])).shape)
-                meta_obs[0] = np.array(np.hstack([ob, a, r, d]))
+                meta_obs[self.history] = np.array(np.hstack([ob, a, r, d]))
+
                 steps += 1
 
             # index into the meta_obs array to get the window that ends with the current timestep
             # please name the windowed observation `in_` for compatibilty with the code that adds to the replay buffer (lines 418, 420)
             # YOUR CODE HERE
-            # in = np.zeros((batch_size, self.history, self.meta_ob_dim))
             in_ = meta_obs[ep_steps:self.history+ep_steps]
-            # print('in: {}'.format(in_))
+
             hidden = np.zeros((1, self.gru_size), dtype=np.float32)
+
             # get action from the policy
-            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: in_[:, None, :] })
-            # meta_obs[:, None, :]
+            # YOUR CODE HERE
+            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: in_[None, :, :]})
+
             # step the environment
+            # YOUR CODE HERE
             ob, rew, done, info = env.step(ac)
 
             ep_steps += 1
-            s = ob
-            a = ac
-            r = np.tile([rew], (ob.shape[0], 1))
-            d = np.tile(done, (ob.shape[0], 1))
+
             done = bool(done) or ep_steps == self.max_path_length
             # construct the meta-observation and add it to meta_obs
-            meta_obs[steps:self.history+steps] = np.concatenate((s, a, r, d), axis=1)
-            # print('meta_obs: {}'.format(meta_obs))
-
+            # YOUR CODE HERE
+            r = np.tile([rew], (ob.shape[0], 1))
+            d = np.tile(done, (ob.shape[0], 1))
+            meta_obs[steps:self.history+steps] = np.concatenate((ob, ac, r, d), axis=1)
             rewards.append(rew)
             steps += 1
-
 
             # add sample to replay buffer
             if is_evaluation:
@@ -439,7 +409,6 @@ class Agent(object):
     def compute_advantage(self, ob_no, re_n, hidden, masks, tau=0.95):
         """
         computes generalized advantage estimation (GAE).
-
         arguments:
             ob_no: (bsize, history, ob_dim)
             rewards: (bsize,)
@@ -447,11 +416,9 @@ class Agent(object):
             values: (bsize,)
             gamma: scalar
             tau: scalar
-
         output:
             advantages: (bsize,)
             returns: (bsize,)
-
         requires:
             self.gamma
         """
@@ -488,18 +455,15 @@ class Agent(object):
     def estimate_return(self, ob_no, re_n, hidden, masks):
         """
         estimates the returns over a set of trajectories.
-
         let sum_of_path_lengths be the sum of the lengths of the paths sampled from
             Agent.sample_trajectories
         let num_paths be the number of paths sampled from Agent.sample_trajectories
-
         arguments:
             ob_no: shape: (sum_of_path_lengths, history, meta_obs_dim)
             re_n: length: num_paths. Each element in re_n is a numpy array
                 containing the rewards for the particular path
             hidden: hidden state of recurrent policy
             masks: terminals masks
-
         returns:
             q_n: shape: (sum_of_path_lengths). A single vector for the estimated q values
                 whose length is the sum of the lengths of the paths
@@ -513,7 +477,6 @@ class Agent(object):
         """
         update the parameters of the policy and the critic,
         with PPO update
-
         arguments:
             ob_no: (minibsize, history, meta_obs_dim)
             hidden: shape: (minibsize, self.gru_size)
@@ -521,10 +484,8 @@ class Agent(object):
             fixed_log_probs: (minibsize)
             adv_n: shape: (minibsize)
             q_n: shape: (sum_of_path_lengths)
-
         returns:
             nothing
-
         """
         self.update_critic(ob_no, hidden, q_n)
         self.update_policy(ob_no, hidden, ac_na, fixed_log_probs, adv_n)
@@ -534,12 +495,10 @@ class Agent(object):
         given:
             self.num_value_iters
             self.l2_reg
-
         arguments:
             ob_no: (minibsize, history, meta_obs_dim)
             hidden: (minibsize, self.gru_size)
             q_n: (minibsize)
-
         requires:
             self.num_value_iters
         """
@@ -566,13 +525,11 @@ class Agent(object):
         """
         given:
             clip_epsilon
-
         arguments:
             advantages (mini_bsize,)
             states (mini_bsize,)
             actions (mini_bsize,)
             fixed_log_probs (mini_bsize,)
-
         intermediate results:
             states, actions --> log_probs
             log_probs, fixed_log_probs --> ratio
