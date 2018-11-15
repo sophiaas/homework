@@ -337,7 +337,6 @@ class Agent(object):
         #====================================================================================#
         #                           ----------PROBLEM 1----------
         #====================================================================================#
-
         ep_steps = 0
         steps = 0
 
@@ -359,7 +358,6 @@ class Agent(object):
                 r = np.zeros((self.reward_dim))
                 d = np.zeros((self.terminal_dim))
                 meta_obs[self.history+steps] = np.concatenate((ob, ac, r, d), axis=0)
-
                 steps += 1
 
             # index into the meta_obs array to get the window that ends with the current timestep
@@ -371,18 +369,20 @@ class Agent(object):
 
             # get action from the policy
             # YOUR CODE HERE
-            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: np.array([in_]), self.sy_hidden: hidden})
+
+            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no: np.array([in_]), self.sy_hidden: hidden})[0]
 
             # step the environment
             # YOUR CODE HERE
-            ob, rew, done, info = env.step(ac)
+            ob, rew, done, _ = env.step(ac)
 
             ep_steps += 1
 
             done = bool(done) or ep_steps == self.max_path_length
             # construct the meta-observation and add it to meta_obs
             # YOUR CODE HERE
-            meta_obs[self.history+steps] = np.concatenate((ob, ac, [r], [int(d)], axis=0)
+            meta_obs[self.history+steps] = np.concatenate((ob, ac, [rew], [int(done)]), axis=0)
+
             rewards.append(rew)
             steps += 1
 
