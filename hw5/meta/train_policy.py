@@ -551,6 +551,7 @@ class Agent(object):
 def train_PG(
         exp_name,
         env_name,
+        granularity,
         n_iter,
         gamma,
         min_timesteps_per_batch,
@@ -588,7 +589,7 @@ def train_PG(
     envs = {'pm': PointEnv,
             'pm-obs': ObservedPointEnv,
             }
-    env = envs[env_name](num_tasks)
+    env = envs[env_name](granularity, num_tasks)
 
     # Set random seeds
     tf.set_random_seed(seed)
@@ -740,6 +741,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name', type=str)
+    parser.add_argument('--granularity', type=int)
     parser.add_argument('--exp_name', type=str, default='exp')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--discount', type=float, default=0.99)
@@ -781,6 +783,7 @@ def main():
             train_PG(
                 exp_name=args.exp_name,
                 env_name=args.env_name,
+                granularity=args.granularity,
                 n_iter=args.n_iter,
                 gamma=args.discount,
                 min_timesteps_per_batch=args.batch_size // args.num_tasks,

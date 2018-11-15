@@ -9,7 +9,8 @@ class PointEnv(Env):
     goals are sampled randomly from a square
     """
 
-    def __init__(self, num_tasks=1):
+    def __init__(self, granularity=1, num_tasks=1):
+        self.granularity = granularity
         self.reset_task()
         self.reset()
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,))
@@ -27,8 +28,16 @@ class PointEnv(Env):
         #                           ----------PROBLEM 3----------
         #====================================================================================#
         # YOUR CODE HERE
-        x = np.random.uniform(-10, 10)
-        y = np.random.uniform(-10, 10)
+        tile_color = 1 if is_evaluation else 0
+        # if is_evaluation:
+        checkerboard = np.kron([[1, 0] * 2, [0, 1] * 2] * granularity, np.ones((granularity, granularity)))
+
+        done = False
+        while not done:
+            x = np.random.uniform(0, checkerboard.shape[0])
+            y = np.random.uniform(0, checkerboard.shape[0])
+            if checkboard[x, y] == tile_color:
+                done = True
         self._goal = np.array([x, y])
 
     def reset(self):
